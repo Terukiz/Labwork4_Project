@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>ESP32 CSV Live Data</title>
+
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+
+  <style>
+    body {
+      font-family: Arial;
+      background: #111;
+      color: white;
+      text-align: center;
+      padding: 30px;
+    }
+
+    h1 {
+      color: cyan;
+    }
+
+    .box {
+      margin: 20px auto;
+      padding: 20px;
+      width: 300px;
+      border-radius: 15px;
+      border: 2px solid cyan;
+      background: #222;
+      font-size: 20px;
+    }
+
+    .touch {
+      font-weight: bold;
+      color: yellow;
+    }
+  </style>
+</head>
+
+<body>
+  <h1>📡 ESP32 CSV Monitor</h1>
+
+  <div class="box">
+    LED Logic: <span id="led">--</span>
+  </div>
+
+  <div class="box">
+    Voltage: <span id="voltage">--</span> V
+  </div>
+
+  <div class="box touch">
+    Touch Status: <span id="touch">--</span>
+  </div>
+
+  <script>
+    const socket = io();
+
+    socket.on("serial_data", (data) => {
+      document.getElementById("led").innerText = data.led;
+      document.getElementById("voltage").innerText = data.voltage;
+      document.getElementById("touch").innerText = data.touch;
+    });
+  </script>
+</body>
+</html>
