@@ -4,18 +4,16 @@ import time
 from flask import Flask, render_template
 from flask_socketio import SocketIO
 
-SERIAL_PORT = "/dev/ttyUSB0"  # Double check this is correct (ls /dev/tty*)
+SERIAL_PORT = "/dev/ttyUSB0" #change to "COM3" (work on window) if it have any problem in the future
 BAUDRATE = 9600
 
 app = Flask(__name__)
-# Added async_mode and logger for better debugging
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 
 def read_serial_port():
     while True:
         ser = None
         try:
-            # Added dsrdtr=True which helps some ESP32 boards maintain connection
             ser = serial.Serial(SERIAL_PORT, BAUDRATE, timeout=1)
             print("✅ Connected to ESP32 Serial")
 
@@ -24,11 +22,28 @@ def read_serial_port():
                     line = ser.readline().decode("utf-8", errors="ignore").strip()
 
                     if line:
-                        print(f"RAW Data: {line}") # Verify this prints in your terminal
+                        print(f"RAW Data: {line}")
                         data_list = [item.strip() for item in line.split(",")]
 
                         if len(data_list) >= 3:
-                            # Emit using the socketio instance directly
+                            try:
+                                voltage = float(data_list[1])
+                            except ValueError:
+                                voltage = None
+                            
+                            alert_message = None
+                            if voltage is not None:
+                                if voltage < 0:
+                                    alert_message = f"⚠️ WARNING: Voltage is below 0V (Current: {voltage}V)"
+                                elif voltage > 3.6:
+                                    alert_message = f"🔴 CRITICAL: Voltage exceeds 3.6V (Current: {voltage}V)"
+                                elif voltage > 3.3:
+                                    alert_message = f"🟡 WARNING: Voltage exceeds 3.3V (Current: {voltage}V)"
+                            
+                            if alert_message:
+                                socketio.emit("voltage_alert", {"message": alert_message})
+                                print(alert_message)
+                            
                             socketio.emit(
                                 "serial_data",
                                 {
@@ -54,8 +69,6 @@ def index():
     return render_template("index.html")
 
 if __name__ == "__main__":
-    # Start thread
     thread = threading.Thread(target=read_serial_port, daemon=True)
     thread.start()
-    # Use allow_unsafe_werkzeug if not using eventlet
     socketio.run(app, host="0.0.0.0", port=5000, debug=False, allow_unsafe_werkzeug=True)
