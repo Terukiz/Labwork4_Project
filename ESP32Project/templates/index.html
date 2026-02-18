@@ -2,53 +2,105 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>ESP32 CSV Live Data</title>
+  <title>ESP32 Live Monitor</title>
 
   <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 
   <style>
     body {
-      font-family: Arial;
-      background: #111;
-      color: white;
+      font-family: "Segoe UI", Arial, sans-serif;
+      background: #0f172a; /* Dark slate blue */
+      color: #e2e8f0;
       text-align: center;
-      padding: 30px;
+      padding: 40px;
+      margin: 0;
     }
 
     h1 {
-      color: cyan;
+      color: #60a5fa; /* Softer blue */
+      margin-bottom: 40px;
+      letter-spacing: 1px;
+    }
+
+    /* Horizontal layout */
+    .container {
+      display: flex;
+      justify-content: center;
+      gap: 30px;
+      flex-wrap: wrap;
     }
 
     .box {
-      margin: 20px auto;
-      padding: 20px;
-      width: 300px;
-      border-radius: 15px;
-      border: 2px solid cyan;
-      background: #222;
+      padding: 25px;
+      width: 250px;
+      border-radius: 16px;
+      background: #1e293b;
       font-size: 20px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.4);
+      transition: 0.3s;
     }
 
-    .touch {
+    .box:hover {
+      transform: translateY(-5px);
+    }
+
+    .label {
+      display: block;
+      font-size: 14px;
+      color: #94a3b8;
+      margin-bottom: 10px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .value {
+      font-size: 28px;
       font-weight: bold;
-      color: yellow;
+    }
+
+    .touch .value {
+      color: #facc15; /* warm yellow */
+    }
+
+    .alert {
+      margin-top: 30px;
+      padding: 15px;
+      border-radius: 12px;
+      background: #7f1d1d;
+      color: #fecaca;
+      font-weight: bold;
+      display: none;
+      width: fit-content;
+      margin-left: auto;
+      margin-right: auto;
     }
   </style>
 </head>
 
 <body>
-  <h1>📡 ESP32 CSV Monitor</h1>
 
-  <div class="box">
-    LED Logic: <span id="led">--</span>
+  <h1>📡 ESP32 Live Monitor</h1>
+
+  <div class="container">
+    <div class="box">
+      <span class="label">LED Logic</span>
+      <span class="value" id="led">--</span>
+    </div>
+
+    <div class="box">
+      <span class="label">Voltage</span>
+      <span class="value" id="voltage">--</span> V
+    </div>
+
+    <div class="box touch">
+      <span class="label">Touch Status</span>
+      <span class="value" id="touch">--</span>
+    </div>
   </div>
 
-  <div class="box">
-    Voltage: <span id="voltage">--</span> V
-  </div>
-
-  <div class="box touch">
-    Touch Status: <span id="touch">--</span>
+  <!-- Alert -->
+  <div class="alert" id="alertBox">
+    ⚠ <span id="alertText"></span>
   </div>
 
   <script>
@@ -58,7 +110,18 @@
       document.getElementById("led").innerText = data.led;
       document.getElementById("voltage").innerText = data.voltage;
       document.getElementById("touch").innerText = data.touch;
+
+      const voltage = parseFloat(data.voltage);
+      if (!isNaN(voltage) && voltage <= 3.3) {
+        document.getElementById("alertBox").style.display = "none";
+      }
+    });
+
+    socket.on("voltage_alert", (data) => {
+      document.getElementById("alertText").innerText = data.message;
+      document.getElementById("alertBox").style.display = "block";
     });
   </script>
+
 </body>
 </html>
