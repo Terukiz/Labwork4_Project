@@ -4,13 +4,21 @@ import time
 from flask import Flask, render_template
 from flask_socketio import SocketIO
 
-SERIAL_PORT = "/dev/ttyUSB0" #change to "COM3" (work on window) if it have any problem in the future
+SERIAL_PORT = "/dev/ttyUSB0"  # change if needed
 BAUDRATE = 9600
 
 app = Flask(__name__)
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 
+# ✅ Alert hold variables
+last_alert = None
+last_alert_time = 0
+ALERT_HOLD_TIME = 2  # seconds
+
+
 def read_serial_port():
+    global last_alert, last_alert_time
+
     while True:
         ser = None
         try:
@@ -30,20 +38,31 @@ def read_serial_port():
                                 voltage = float(data_list[1])
                             except ValueError:
                                 voltage = None
-                            
+
                             alert_message = None
+
+                            # 🔍 Voltage checking
                             if voltage is not None:
-                                if voltage < 0:
-                                    alert_message = f"⚠️ WARNING: Voltage is below 0V (Current: {voltage}V)"
-                                elif voltage > 3.6:
-                                    alert_message = f"🔴 CRITICAL: Voltage exceeds 3.6V (Current: {voltage}V)"
-                                elif voltage > 3.3:
-                                    alert_message = f"🟡 WARNING: Voltage exceeds 3.3V (Current: {voltage}V)"
-                            
+                                if voltage < 2:
+                                    alert_message = f"⚠️ WARNING: Voltage is below 2V (Current: {voltage}V)"
+                                elif voltage > 3:
+                                    alert_message = f"⚠️ WARNING: Voltage exceeds 3V (Current: {voltage}V)"
+                                elif voltage >= 3.3:
+                                    alert_message = f"⚠️ WARNING: Voltage exceeds 3.3V (Current: {voltage}V)"
+
+                            current_time = time.time()
+
+                            # ✅ Keep alert for at least 2 seconds
                             if alert_message:
-                                socketio.emit("voltage_alert", {"message": alert_message})
-                                print(alert_message)
-                            
+                                if (last_alert != alert_message) and (current_time - last_alert_time < ALERT_HOLD_TIME):
+                                    pass  # Ignore new alert during hold time
+                                else:
+                                    last_alert = alert_message
+                                    last_alert_time = current_time
+                                    socketio.emit("voltage_alert", {"message": alert_message})
+                                    print(alert_message)
+
+                            # Send normal serial data
                             socketio.emit(
                                 "serial_data",
                                 {
@@ -52,7 +71,8 @@ def read_serial_port():
                                     "touch": data_list[2],
                                 }
                             )
-                time.sleep(0.01) # Faster polling
+
+                time.sleep(0.01)
 
         except (serial.SerialException, OSError) as e:
             print(f"❌ Serial error: {e}")
@@ -64,11 +84,13 @@ def read_serial_port():
             if ser and ser.is_open:
                 ser.close()
 
+
 @app.route("/")
 def index():
     return render_template("index.html")
 
+
 if __name__ == "__main__":
     thread = threading.Thread(target=read_serial_port, daemon=True)
     thread.start()
-    socketio.run(app, host="0.0.0.0", port=5000, debug=False, allow_unsafe_werkzeug=True)
+    socketio.run(app, host="0.0.0.0", port=6767, debug=False, allow_unsafe_werkzeug=True)

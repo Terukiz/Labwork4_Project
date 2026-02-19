@@ -105,21 +105,29 @@
 
   <script>
     const socket = io();
+    let alertTimeout = null;
 
     socket.on("serial_data", (data) => {
       document.getElementById("led").innerText = data.led;
       document.getElementById("voltage").innerText = data.voltage;
       document.getElementById("touch").innerText = data.touch;
-
-      const voltage = parseFloat(data.voltage);
-      if (!isNaN(voltage) && voltage <= 3.3) {
-        document.getElementById("alertBox").style.display = "none";
-      }
     });
 
     socket.on("voltage_alert", (data) => {
-      document.getElementById("alertText").innerText = data.message;
-      document.getElementById("alertBox").style.display = "block";
+      const alertBox = document.getElementById("alertBox");
+      const alertText = document.getElementById("alertText");
+
+      alertText.innerText = data.message;
+      alertBox.style.display = "block";
+
+      // ✅ Keep alert for at least 2 seconds
+      if (alertTimeout) {
+        clearTimeout(alertTimeout);
+      }
+
+      alertTimeout = setTimeout(() => {
+        alertBox.style.display = "none";
+      }, 2000);
     });
   </script>
 
