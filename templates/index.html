@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ESP32 System Monitor</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root {
+      --bg: #09090b;
+      --border: #27272a;
+      --zinc-100: #fafafa;
+      --zinc-400: #a1a1aa;
+      --zinc-500: #71717a;
+      --zinc-600: #52525b;
+      --zinc-800: #27272a;
+      --zinc-900: #18181b;
+      --emerald: #10b981;
+      --red: #ef4444;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--zinc-100);
+      font-family: 'JetBrains Mono', monospace;
+      margin: 0;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    /* Header */
+    .header {
+      width: 100%;
+      max-width: 1200px;
+      padding: 16px;
+      border: 1px solid var(--zinc-800);
+      border-bottom: none;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--bg);
+      box-sizing: border-box;
+    }
+
+    .header-title {
+      font-size: 14px;
+      letter-spacing: 0.2em;
+      font-weight: bold;
+    }
+
+    .header-dot {
+      width: 8px;
+      height: 8px;
+      background: var(--emerald);
+      display: inline-block;
+      margin-right: 10px;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+
+      0%,
+      100% {
+        opacity: 1;
+      }
+
+      50% {
+        opacity: 0.4;
+      }
+    }
+
+    /* Main Grid */
+    .grid {
+      width: 100%;
+      max-width: 1200px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      border-left: 1px solid var(--zinc-800);
+      border-top: 1px solid var(--zinc-800);
+    }
+
+    .card {
+      padding: 24px;
+      border-right: 1px solid var(--zinc-800);
+      border-bottom: 1px solid var(--zinc-800);
+      background: var(--bg);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      min-height: 200px;
+    }
+
+    .card-label {
+      font-size: 10px;
+      color: var(--zinc-500);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      font-weight: bold;
+    }
+
+    /* Elements */
+    .value {
+      font-size: 2.5rem;
+      font-weight: bold;
+      margin: 15px 0;
+      tabular-nums: auto;
+    }
+
+    .unit {
+      font-size: 14px;
+      color: var(--zinc-500);
+      margin-left: 5px;
+    }
+
+    .btn {
+      background: var(--zinc-900);
+      border: 1px solid var(--zinc-800);
+      color: var(--zinc-400);
+      padding: 10px;
+      font-family: inherit;
+      font-size: 10px;
+      font-weight: bold;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: 0.2s;
+    }
+
+    .btn:hover {
+      background: var(--zinc-800);
+      color: var(--zinc-100);
+      border-color: var(--zinc-700);
+    }
+
+    .indicator {
+      width: 12px;
+      height: 12px;
+      border: 1px solid var(--zinc-700);
+      background: var(--zinc-800);
+    }
+
+    .indicator.active {
+      background: var(--emerald);
+      box-shadow: 0 0 10px var(--emerald);
+    }
+
+    /* Chart & Logs */
+    .chart-container {
+      grid-column: 1 / -1;
+      height: 350px;
+      padding: 24px;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .log-container {
+      grid-column: 1 / -1;
+      min-height: 250px;
+      padding: 0;
+    }
+
+    .rfid-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+
+    .rfid-table th {
+      padding: 12px 24px;
+      text-align: left;
+      color: var(--zinc-500);
+      border-bottom: 1px solid var(--zinc-800);
+      text-transform: uppercase;
+    }
+
+    .rfid-table td {
+      padding: 12px 24px;
+      border-bottom: 1px solid #18181b;
+    }
+
+    /* Footer Status Bar */
+    .status-bar {
+      grid-column: 1 / -1;
+      padding: 10px 24px;
+      background: var(--zinc-900);
+      display: flex;
+      justify-content: space-between;
+      font-size: 10px;
+      color: var(--zinc-600);
+      border-right: 1px solid var(--zinc-800);
+      border-bottom: 1px solid var(--zinc-800);
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="header">
+    <div class="header-title">
+      <div class="header-dot"></div>
+      ESP32-WROOM-32 <span style="color:var(--zinc-600)">///</span> SYSTEM MONITOR
+    </div>
+    <button class="btn" onclick="downloadCSV()">CSV EXPORT</button>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <div class="card-label">LED STATUS</div>
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div id="ledText" class="value" style="font-size: 1.5rem; color: var(--zinc-500);">INACTIVE</div>
+        <div id="ledInd" class="indicator"></div>
+      </div>
+      <button class="btn" onclick="socket.emit('toggle_led')">Toggle State</button>
+    </div>
+
+    <div class="card">
+      <div class="card-label">Touch?</div>
+      <div class="value" id="touchVal">IDLE</div>
+      <div style="width:100%; height:2px; background:var(--zinc-800)">
+        <div id="touchBar" style="width:0%; height:100%; background:var(--zinc-400); transition: 0.3s;"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">VCC Voltage</div>
+      <div class="value"><span id="vText">0.0000</span><span class="unit">V</span></div>
+      <div id="vStatus" style="font-size: 10px; color: var(--emerald)">NORMAL</div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">System Uptime</div>
+      <div class="value" id="uptimeText" style="font-size: 1.8rem;">00:00:00</div>
+      <div style="font-size: 10px; color: var(--zinc-600)">CORE TEMP: 25°C</div>
+    </div>
+
+    <div class="card chart-container">
+      <div class="card-label" style="margin-bottom: 20px;">Oscilloscope (ADC 34)</div>
+      <div style="flex: 1; min-height: 0;"> <canvas id="liveChart"></canvas>
+      </div>
+    </div>
+
+    <div class="card log-container">
+      <table class="rfid-table">
+        <thead>
+          <tr>
+            <th>Timestamp</th>
+            <th>Tag ID</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="rfidBody">
+        </tbody>
+      </table>
+    </div>
+
+    <div class="status-bar">
+      <div>FW: V2.4.1-STABLE // SYNC: 120MS</div>
+      <div>UART0: 115200 // PARITY: NONE</div>
+    </div>
+  </div>
+
+  <div style="margin-top: 20px; font-size: 10px; color: var(--zinc-700); letter-spacing: 0.2em;">
+    SERIAL: /DEV/TTYUSB0 • BAUD: 9600
+  </div>
+
+  <script>
+    const socket = io({ transports: ["websocket"] });
+    let dataLog = [];
+    let seconds = 0;
+
+    // Uptime Timer
+    setInterval(() => {
+      seconds++;
+      const h = String(Math.floor(seconds / 3600)).padStart(2, '0');
+      const m = String(Math.floor((seconds % 3600) / 60)).padStart(2, '0');
+      const s = String(seconds % 60).padStart(2, '0');
+      document.getElementById("uptimeText").innerText = `${h}:${m}:${s}`;
+    }, 1000);
+
+    // Chart Setup
+    const ctx = document.getElementById('liveChart').getContext('2d');
+    const chart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: Array(30).fill(''),
+        datasets: [{
+          data: [], borderColor: '#fafafa', borderWidth: 1, tension: 0.4, fill: false, pointRadius: 0
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        scales: {
+          x: { display: false },
+          y: { min: 0, max: 4, grid: { color: '#27272a' }, ticks: { color: '#52525b', font: { size: 10 } } }
+        },
+        plugins: { legend: { display: false } }
+      }
+    });
+
+    socket.on("serial_data", (data) => {
+      // Voltage Update
+      const v = parseFloat(data.voltage);
+      document.getElementById("vText").innerText = v.toFixed(4);
+      document.getElementById("vStatus").innerText = (v > 3.0) ? "NORMAL" : "UNSTABLE";
+      document.getElementById("vStatus").style.color = (v > 3.0) ? "var(--emerald)" : "var(--red)";
+
+      // LED Update
+      const isON = (data.led == "1");
+      document.getElementById("ledText").innerText = isON ? "ACTIVE" : "INACTIVE";
+      document.getElementById("ledText").style.color = isON ? "var(--emerald)" : "var(--zinc-500)";
+      document.getElementById("ledInd").className = isON ? "indicator active" : "indicator";
+
+      // Touch Update
+      const isTouch = (data.touch === "TOUCH");
+      document.getElementById("touchVal").innerText = isTouch ? "TOUCHED" : "IDLE";
+      document.getElementById("touchBar").style.width = isTouch ? "100%" : "0%";
+
+      // Chart Update
+      chart.data.datasets[0].data.push(v);
+      if (chart.data.datasets[0].data.length > 30) chart.data.datasets[0].data.shift();
+      chart.update('none');
+
+      dataLog.push([new Date().toISOString(), v, data.led, data.touch]);
+    });
+
+    socket.on("rfid_event", (data) => {
+      const body = document.getElementById("rfidBody");
+      const row = `<tr style="color:${data.color}">
+        <td>${new Date().toLocaleTimeString()}</td>
+        <td>${data.text.split('|')[0]}</td>
+        <td>${data.text.split('|')[1] || 'DETECTED'}</td>
+      </tr>`;
+      body.insertAdjacentHTML('afterbegin', row);
+    });
+
+    function downloadCSV() {
+      let csv = "Timestamp,Voltage,LED,Touch\n" + dataLog.map(e => e.join(",")).join("\n");
+      let blob = new Blob([csv], { type: 'text/csv' });
+      let url = URL.createObjectURL(blob);
+      let a = document.createElement('a');
+      a.href = url; a.download = `esp32_system_log_${Date.now()}.csv`; a.click();
+    }
+  </script>
+</body>
+
+</html>
