@@ -229,7 +229,7 @@
     <div class="card">
       <div class="card-label">VCC Voltage</div>
       <div class="value"><span id="vText">0.0000</span><span class="unit">V</span></div>
-      <div id="vStatus" style="font-size: 10px; color: var(--emerald)">NORMAL</div>
+      <div id="vStatus" style="font-size: 10px; color: var(--red">CLOSE</div>
     </div>
 
     <div class="card">
@@ -306,8 +306,8 @@
       // Voltage Update
       const v = parseFloat(data.voltage);
       document.getElementById("vText").innerText = v.toFixed(4);
-      document.getElementById("vStatus").innerText = (v > 3.0) ? "NORMAL" : "UNSTABLE";
-      document.getElementById("vStatus").style.color = (v > 3.0) ? "var(--emerald)" : "var(--red)";
+      document.getElementById("vStatus").innerText = (v > 2.0 && v <= 3.3) ? "NORMAL" : "UNSTABLE";
+      document.getElementById("vStatus").style.color = (v > 2.0 && v <= 3.3) ? "var(--emerald)" : "var(--red)";
 
       // LED Update
       const isON = (data.led == "1");
