@@ -165,11 +165,6 @@ BAUDRATE = 9600                          # Must match ESP32 serial config
 ## 📝 License
 
 This project is provided as-is for educational purposes.
-
-## 👤 Author
-
-Labwork4 Project
-
 ---
 
 For more information and updates, visit the repository.
